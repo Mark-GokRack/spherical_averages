@@ -11,7 +11,9 @@
 
 using namespace std;
 
-void save_vec( string filename, const vector<double>& v,size_t N, size_t M = 1){
+using T = double;
+
+void save_vec( string filename, const vector<T>& v,size_t N, size_t M = 1){
     ofstream ofs( filename );
     for( size_t n = 0; n < N; n++ ){
         for( size_t m = 0; m < M; m++ ){
@@ -29,8 +31,8 @@ int main( int argc, char** argv ){
     size_t N = 256;
     size_t M = 256;
     
-    std::vector<double> w( N );
-    std::vector<double> p( N * M );
+    std::vector<T> w( N );
+    std::vector<T> p( N * M );
 
     std::random_device seed_gen;
     std::default_random_engine engine(seed_gen());    
@@ -48,7 +50,7 @@ int main( int argc, char** argv ){
     save_vec("w.csv", w, N );
     save_vec("p.csv", p, N, M );
 
-    SphericalAverage<double> sph_avg( N, M, p.data() );
+    SphericalAverage<T> sph_avg( N, M, p.data() );
 
     sph_avg.set_weights( N, w.data() );
 
@@ -59,7 +61,7 @@ int main( int argc, char** argv ){
     }
     auto end_time = chrono::system_clock::now();
 
-    auto elapsed_time = static_cast<double>(
+    auto elapsed_time = static_cast<T>(
         chrono::duration_cast<chrono::microseconds>(end_time - start_time).count() / 1000.0
     );
     cout << "num loop : " << loop_count << endl;

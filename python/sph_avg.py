@@ -97,14 +97,14 @@ plt.plot( np.log10( loss ))
 plt.show()
 # %%
 
-w = np.loadtxt("../test/w.csv", delimiter=",")
-p = np.loadtxt("../test/p.csv", delimiter=",")
+w = np.loadtxt("test/w.csv", delimiter=",")
+p = np.loadtxt("test/p.csv", delimiter=",")
 w /= np.sum( w )
 p /= np.linalg.norm( p, axis=1 )[:,np.newaxis]
 start_time = time.perf_counter()
 q, v, loss = sph_avg( w, p )
 end_time = time.perf_counter()
-np.savetxt( "../test/v_python.csv", v, delimiter="")
+np.savetxt( "test/v_python.csv", v, delimiter="")
 print( "num loop : {0:d}".format(len(loss)))
 print( "elapsed time : {0:.2f} ms".format( (end_time - start_time)*1000 ) )
 # %%
