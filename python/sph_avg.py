@@ -6,15 +6,15 @@ import time
 import matplotlib.pyplot as plt
 
 # %%
-def sph_log( w, p, q ):
+def update_r_v( w, p, q ):
     cos_th = p @ q
     th = np.arccos( cos_th )
     sinc_th = np.sinc(th / np.pi)
-    p_prime = ( p -  q[np.newaxis,:] *cos_th[:,np.newaxis] )/ sinc_th[:,np.newaxis]
-    w_prime = w / ( sinc_th * np.sum(w * cos_th / sinc_th) )
-    return p_prime, w_prime
+    r = ( p -  q[np.newaxis,:] *cos_th[:,np.newaxis] )/ sinc_th[:,np.newaxis]
+    v = w / ( sinc_th * np.sum(w * cos_th / sinc_th) )
+    return r, v
     
-def sph_exp( q, u ):
+def update_q( q, u ):
     th = np.linalg.norm( u )
     return q * np.cos( th) + u * np.sinc( th / np.pi )
 
@@ -22,16 +22,17 @@ def sph_avg( w, p, max_loop = 1024, eps = sys.float_info.epsilon ):
     # initialization
     q = w @ p
     q /= np.linalg.norm( q )
-    p_prime, w_prime = sph_log( w, p, q )
-    losses = [np.linalg.norm( w_prime @ p - q )]
+    r, v = update_r_v( w, p, q )
+    losses = [np.linalg.norm( v @ p - q )]
     for _ in range( max_loop ):
-        u = w @ p_prime
+        u = w @ r
         if np.linalg.norm( u ) < eps:
+        #if  u @ u < eps:
             break
-        q = sph_exp( q, u )
-        p_prime, w_prime = sph_log( w, p, q )
-        losses.append( np.linalg.norm( w_prime @ p - q ) )
-    return q, w_prime, losses
+        q = update_q( q, u )
+        r, v = update_r_v( w, p, q )
+        losses.append( np.linalg.norm( v @ p - q ) )
+    return q, v, losses
 
 def slerp( w, p ):
     assert len( w ) == 2 or p.shape[0] == 2
@@ -39,11 +40,11 @@ def slerp( w, p ):
     cos_omega = p[0,:] @ p[1,:]
     omega = np.arccos( cos_omega )
     sin_omega = np.sin( omega )
-    w_slerp = np.asarray([
+    v = np.asarray([
         np.sin( w[0] * omega ) / sin_omega,
         np.sin( w[1] * omega ) / sin_omega
     ])
-    return w_slerp @ p, w_slerp
+    return v @ p, v
 
 # %%
 
@@ -79,12 +80,12 @@ p = np.random.randn( N, M )
 p = p / np.linalg.norm( p, axis=1 )[:,np.newaxis]
 
 start_time = time.perf_counter()
-q, w_prime, loss = sph_avg( w, p )
+q, v, loss = sph_avg( w, p )
 end_time = time.perf_counter()
 
-# print( (q, w_prime, loss) )
+# print( (q, v, loss) )
 print( "spherical average performance check")
-print( "\tsdr of (w_prime @ p - q) : {0:e}".format( np.linalg.norm( w_prime @ p - q ) / np.linalg.norm( q ) ) )
+print( "\tsdr of ( v @ p ) and q : {0:e}".format( np.linalg.norm( v @ p - q ) / np.linalg.norm( q ) ) )
 print( "\tloop count : {0:d}".format( len( loss ) ) )
 print( "\telapsed time : {0:.2f} ms".format( (end_time - start_time)*1000 ) )
 
@@ -94,4 +95,16 @@ print( "\telapsed time : {0:.2f} ms".format( (end_time - start_time)*1000 ) )
 # plt.show()
 plt.plot( np.log10( loss ))
 plt.show()
+# %%
+
+w = np.loadtxt("../test/w.csv", delimiter=",")
+p = np.loadtxt("../test/p.csv", delimiter=",")
+w /= np.sum( w )
+p /= np.linalg.norm( p, axis=1 )[:,np.newaxis]
+start_time = time.perf_counter()
+q, v, loss = sph_avg( w, p )
+end_time = time.perf_counter()
+np.savetxt( "../test/v_python.csv", v, delimiter="")
+print( "num loop : {0:d}".format(len(loss)))
+print( "elapsed time : {0:.2f} ms".format( (end_time - start_time)*1000 ) )
 # %%
