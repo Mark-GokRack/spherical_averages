@@ -9,6 +9,10 @@
 #include <limits>
 #include <cassert>
 
+/**
+ * This class implements spherical averages (https://mathweb.ucsd.edu/~sbuss/ResearchWeb/spheremean/index.html),
+ *  which correspond to spherical linear interpolation between two or more vectors.
+ */
 template<typename T>
 class SphericalAverage{
 public:
