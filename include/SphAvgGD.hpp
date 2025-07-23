@@ -10,27 +10,27 @@
 #include <cassert>
 
 /**
- * This class implements Argorithm A1 of spherical averages
- *  (https://mathweb.ucsd.edu/~sbuss/ResearchWeb/spheremean/index.html),
- *  to calculate spherical linear interpolation between two or more vectors.
+ * This class implements gradient descent method for spherical averages
+ * to calculate spherical linear interpolation between two or more vectors.
+ * see also :  Spherical Averages (https://mathweb.ucsd.edu/~sbuss/ResearchWeb/spheremean/index.html)
  */
 
 template<typename T>
-class SphericalAverage{
+class SphericalAverageGD{
 public:
 
-    SphericalAverage( )
+    SphericalAverageGD( )
         : N( 0 ), M( 0 ), converged(false)
-        , w(), p(), q(), v(), r(), u(), s()
+        , w(), p(), q(), v(), g()
     {}
 
-    SphericalAverage( size_t num_point, size_t num_feature, T* unnormalized_vectors )
+    SphericalAverageGD( size_t num_point, size_t num_feature, T* unnormalized_vectors )
         : N( num_point ), M( num_feature ), converged(false)
-        , w(), p(), q(), v(), r(), u(), s()
+        , w(), p(), q(), v(), g()
     {
         initialize( N, M, unnormalized_vectors );
     }
-    ~SphericalAverage() = default;
+    ~SphericalAverageGD() = default;
 
     void initialize( size_t num_point, size_t num_feature, T* unnormalized_vectors ){
         N = num_point;
@@ -40,10 +40,9 @@ public:
         q.resize(M, (T)0.0);   // size = M
     
         v.resize(N, (T)0.0);   // size = N
-        r.resize(N*M, (T)0.0); // size = N * M
-        u.resize(M, (T)0.0);   // size = M
-
-        s.resize(N, (T)0.0);   // size = N
+        g.resize(M, (T)0.0);   // size = M
+        //u.resize(M, (T)0.0);   // size = M
+        //loss = std::numeric_limits<T>::max();
 
         std::copy_n(
             unnormalized_vectors, N * M, p.begin()
@@ -52,6 +51,7 @@ public:
             normalize_vector( M, &p[ n * M ]);
         }
     }
+
     void set_weights( size_t num_point, T* weights ){
         assert( N == num_point );
         converged = false;
@@ -67,7 +67,7 @@ public:
         if( converged ){
             std::fill_n( v.begin(), N, (T)0.0);
         }else{
-            update_r_v();
+            update_v_g();
         }
     }
 
@@ -75,12 +75,22 @@ public:
         if( converged ){
             return true;
         }
-        // update u
-        weighted_sum( w.data(), r.data(), u.data() );
+        T norm_g = sqrt( dot( M, g.data(), g.data() ) );
+        /*
+        weighted_sum( v.data(), p.data(), u.data() );
+        for( size_t m = 0; m < M; m++ ){
+            u[m] -= q[m];
+        }
         T norm_u = sqrt( dot( M, u.data(), u.data() ) );
-        if( norm_u >= std::numeric_limits<T>::epsilon() ){
-            update_q( norm_u );
-            update_r_v();
+        */
+        if( 
+            norm_g >= 8*std::numeric_limits<T>::epsilon()
+            // epsilon そのままだと結構止まらないことがあったので少し大きくしておく
+            // && loss - norm_u >= std::numeric_limits<T>::epsilon() 
+        ){
+            //loss = norm_u;
+            update_q();
+            update_v_g();
         }else{
             converged = true;
         }
@@ -89,7 +99,6 @@ public:
 
     const std::vector<T>& get_weights( void ){
         return v;
-    
     }
 
 private:
@@ -113,6 +122,13 @@ private:
         }else{
             //std::fill_n( x, len, (T)0.0 );
             return false;
+        }
+    }
+
+    void project_vector_to_plane( size_t len, const T* x, T* y ){
+        T inner_product = dot( len, x, y );
+        for( size_t l = 0; l < len; l++ ){
+            y[l] -= inner_product * x[l];
         }
     }
 
@@ -163,31 +179,41 @@ private:
         return y;
     }
 
-    void update_r_v( void ){
-        T sum_w_c_s = 0.0;
+    void update_v_g( void ){
+        T sum_w_c_s = (T)0.0;
+        
+        for( size_t m = 0; m < M; m++ ){
+            g[ m ] = (T)0.0;
+        }
+
         for( size_t n = 0; n < N; n++ ){
             T cos_th = dot( M, &p[n*M], q.data());
-            s[n] = ((T)1.0) / ( sinc( acos( cos_th ) ) + std::numeric_limits<T>::epsilon() );
+            T theta = acos( cos_th );
+            T inv_sinc_th = ((T)1.0) / ( sinc( theta ) + std::numeric_limits<T>::epsilon() );
+            sum_w_c_s += w[n] * cos_th * inv_sinc_th;
 
-            T c_s = cos_th * s[n];
-            sum_w_c_s += w[n] * c_s;
+            v[n] = w[n] * inv_sinc_th;
 
+            T a_n = - ((T)2.0) * w[ n ] * theta / sqrt( ((T)1.0) - cos_th * cos_th );
             for( size_t m = 0; m < M; m++ ){
-                r[ n * M + m ] = p[ n * M + m ] * s[n] - q [ m ] * c_s;
+                g[ m ] += a_n * p[ n*M + m ];
             }
         }
+
         T inv_sum_w_c_s = ((T)1.0) / ( sum_w_c_s + std::numeric_limits<T>::epsilon() );
         for( size_t n = 0; n < N; n++ ){
-            v[n] = w[n] * s[n] * inv_sum_w_c_s;
+            v[n] *= inv_sum_w_c_s;
         }
+
+        project_vector_to_plane( M, q.data(), g.data() );
+
     }
 
-    void update_q( T phi ){
-        T alpha = cos( phi );
-        T beta = sinc( phi );
+    void update_q( void ){
         for (size_t m = 0; m < M; m++){
-            q[ m ] = q[ m ] * alpha + u[ m ] * beta;
+            q[ m ] -= g[ m ];
         }
+        normalize_vector( M, q.data() );
     }
 
     size_t N;
@@ -197,13 +223,13 @@ private:
     // vectors in original space
     std::vector<T> w;   // size = N
     std::vector<T> p;   // size = N * M
+
     std::vector<T> q;   // size = M
     
-    // vectors in tangent plane
     std::vector<T> v;   // size = N
-    std::vector<T> r;   // size = N * M
-    std::vector<T> u;   // size = M
+    std::vector<T> g;   // size = M
 
-    // working memory
-    std::vector<T> s;   // size = N
+    // std::vector<T> u;   // size = M
+    //T loss;
+
 };
