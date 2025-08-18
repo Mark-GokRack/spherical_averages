@@ -3,19 +3,17 @@
 import numpy as np
 import sys
 import time
+import matplotlib.pyplot as plt
+# import scipy.optimize as opt
+# import os
+# os.chdir(os.path.dirname(__file__))
 
 # %%
 
-def slerp( w, p ):
-    """Slerp により 2 個の M 次元ベクトルについての球面上での線形補間を計算する。
+# eps = sys.float_info.epsilon
+eps = np.sqrt( sys.float_info.epsilon )
 
-    Arguments:
-        w : 各ベクトルごとの重み係数。 サイズは [2]
-        p : 球面上の荷重平均を取る球面上のベクトルを並べた行列。 サイズは [2, M]
-    Returns:
-        q : 球面上の荷重平均をとった値。サイズは [M]
-        v : q = v @ p を満たす重み係数。サイズは [2]
-    """
+def slerp( w, p ):
     assert len( w ) == 2 or p.shape[0] == 2
 
     cos_omega = p[0,:] @ p[1,:]
@@ -28,9 +26,10 @@ def slerp( w, p ):
     return v @ p, v
 
 def sph_avg_a1( w, p, max_loop = 1024, eps = sys.float_info.epsilon ):
-    """ Spherical Weighted Averae により、N 個の M 次元ベクトルについての球面線形補間を計算する。
-        こちらはの元論文(https://mathweb.ucsd.edu/~sbuss/ResearchWeb/spheremean/paper.pdf)の
-        Algorithm A1 を実装したもの。
+    """ N 個の M 次元ベクトルについての球面上での荷重平均を計算する。
+
+    Spherical Weighted Average の元論文(https://mathweb.ucsd.edu/~sbuss/ResearchWeb/spheremean/paper.pdf)の
+      Algorithm A1 を実装したもの。
 
     Arguments:
         w : 各ベクトルごとの重み係数。 サイズは [N]
@@ -80,8 +79,8 @@ def sph_avg_a1( w, p, max_loop = 1024, eps = sys.float_info.epsilon ):
     return q, v, l
 
 def sph_avg_gradient_descent( w, p, step_size = 1.0, max_loop = 1024, eps = sys.float_info.epsilon ):
-    """ Spherical Weighted Averae により、N 個の M 次元ベクトルについての球面線形補間を計算する。
-        こちらは Riemann 多様体上の最急降下法で実装したもの。
+    """ N 個の M 次元ベクトルについての球面上での荷重平均を計算する。
+    Riemann 多様体上の最急降下法で実装したもの。
 
     Arguments:
         w : 各ベクトルごとの重み係数。 サイズは [N]
@@ -107,10 +106,9 @@ def sph_avg_gradient_descent( w, p, step_size = 1.0, max_loop = 1024, eps = sys.
         cos_th = p @ q
         th =  np.arccos( cos_th )
         inv_sinc_th = 1.0/ np.sinc(th / np.pi)
-        w_inv_sinc_th = w * inv_sinc_th
 
         # v @ p = q となる重み係数 v を算出。
-        v = w_inv_sinc_th / np.sum(cos_th * w_inv_sinc_th)
+        v = w * inv_sinc_th/ ( np.sum(w * cos_th * inv_sinc_th) )
         
         # 勾配を算出
         grad = - ( w * 2 * th / np.sqrt( 1 - cos_th * cos_th ) ) @ p
@@ -126,8 +124,8 @@ def sph_avg_gradient_descent( w, p, step_size = 1.0, max_loop = 1024, eps = sys.
     return q, v, l
 
 def sph_avg_l_bfgs( w, p, step_size = 1.0, max_mem = 4, max_loop = 1024, eps = sys.float_info.epsilon ):
-    """ Spherical Weighted Averae により、N 個の M 次元ベクトルについての球面線形補間を計算する。
-        こちらはRiemann 多様体上の L-BFGS 法で実装したもの。
+    """ N 個の M 次元ベクトルについての球面上での荷重平均を計算する。
+    Riemann 多様体上の L-BFGS 法で実装したもの。
 
     Arguments:
         w : 各ベクトルごとの重み係数。 サイズは [N]
@@ -152,16 +150,15 @@ def sph_avg_l_bfgs( w, p, step_size = 1.0, max_mem = 4, max_loop = 1024, eps = s
     q /= np.linalg.norm( q )
 
     # 過去の更新履歴の記憶領域確保
-    s = np.zeros( [max_mem, M ], dtype=w.dtype )
-    y = np.zeros( [max_mem, M ], dtype=w.dtype )
-    rho = np.zeros( [max_mem], dtype=w.dtype )
-    alpha = np.zeros([max_mem], dtype=w.dtype )
+    s = np.zeros( [max_mem, M ] )
+    y = np.zeros( [max_mem, M ] )
+    rho = np.zeros( [max_mem] )
+    alpha = np.zeros([max_mem] )
     idx = 0
 
     cos_th = p @ q
     th =  np.arccos( cos_th )
-    inv_sinc_th = 1.0/ np.sinc(th / np.pi)
-    w_inv_sinc_th = w * inv_sinc_th
+    sinc_th = np.sinc(th / np.pi)
 
     # 勾配を算出
     grad = - ( w * 2 * th / np.sqrt( 1 - cos_th * cos_th ) ) @ p
@@ -172,7 +169,7 @@ def sph_avg_l_bfgs( w, p, step_size = 1.0, max_mem = 4, max_loop = 1024, eps = s
         n_mem = min(l,max_mem)
 
         # v @ p = q となる重み係数 v を算出。
-        v = w_inv_sinc_th / np.sum( cos_th * w_inv_sinc_th )
+        v = w / ( sinc_th * np.sum(w * cos_th / sinc_th) )
 
         # 勾配について、点 q における超接平面への直交投影を計算する
         grad = grad - ( q @ grad ) * q
@@ -199,8 +196,7 @@ def sph_avg_l_bfgs( w, p, step_size = 1.0, max_mem = 4, max_loop = 1024, eps = s
 
         cos_th = p @ q_next
         th =  np.arccos( cos_th )
-        inv_sinc_th = 1.0/np.sinc(th / np.pi)
-        w_inv_sinc_th = w * inv_sinc_th
+        sinc_th = np.sinc(th / np.pi)
 
         grad_next = - ( w * 2 * th / np.sqrt( 1 - cos_th * cos_th ) ) @ p
 
@@ -226,105 +222,115 @@ def sph_avg_l_bfgs( w, p, step_size = 1.0, max_mem = 4, max_loop = 1024, eps = s
 
 # %%
 if __name__ == "__main__":
-    
-    # 2点間の Spherical Weighted Average が Slerp と一致するかのチェック
-    print( "comparing 2-pint spherical average (Algorithm A1) to Slerp.")
+    ## if N=2, the Spherical Average is almost perfectly consistent with the SLERP.
+    N = 2
+    M = 256
 
-    M = 256 # ベクトルの次元数
-
-    diff_q = []
-    diff_v = []
+    q_sdr = []
+    w_sdr = []
     for _ in range(1024):
-        w = np.random.rand( 2 )
+        w = np.random.rand( N )
         w /= np.sum( w )
 
-        p = np.random.randn( 2, M )
+        p = np.random.randn( N, M )
         p = p / np.linalg.norm( p, axis=1 )[:,np.newaxis]
 
-        q_slerp, v_slerp = slerp(w, p)
-        q_sph_avg, v_sph_avg, losses_sph_avg = sph_avg_a1( w, p )
-        diff_q.append(np.max(np.abs( q_sph_avg - q_slerp )))
-        diff_v.append(np.max(np.abs( v_slerp - v_sph_avg )))
+        q_slerp, w_slerp = slerp(w, p)
+        q_sph_avg, w_sph_avg, losses_sph_avg = sph_avg_a1( w, p )
+        q_sdr.append( np.linalg.norm( q_sph_avg - q_slerp ) ) # / np.linalg.norm( q_slerp )) 
+        w_sdr.append( np.linalg.norm( w_slerp - w_sph_avg ))
+    print( "compare to slerp")
+    print( "\tmax difference of q : {0:e}".format( np.max( q_sdr ) ) )
+    print( "\tmax difference of w : {0:e}".format( np.max( w_sdr ) ) )
 
-    print( "\t max difference of q : {0:e}".format( np.max( diff_q ) ) )
-    print( "\t max difference of v : {0:e}".format( np.max( diff_v ) ) )
-    print( "")
+    # %%
+    ## Verify the calculation time and error of the Spherical Average itself.
+    N = 256
+    M = 256
+
+
+    w = np.random.rand( N )
+    w /= np.sum( w )
+
+    p = np.random.randn( N, M )
+    p = p / np.linalg.norm( p, axis=1 )[:,np.newaxis]
+
+    start_time = time.perf_counter()
+    q, v, loss = sph_avg_a1( w, p, eps=eps )
+    end_time = time.perf_counter()
+
+    # print( (q, v, loss) )
+    print( "Algorithm A1 performance check")
+    print( "\tsdr of ( v @ p ) and q : {0:e}".format( np.linalg.norm( v @ p - q ) / np.linalg.norm( q ) ) )
+    print( "\tloop count : {0:d}".format( l ) )
+    print( "\telapsed time : {0:.2f} ms".format( (end_time - start_time)*1000 ) )
+
+    start_time = time.perf_counter()
+    q, v, loss = sph_avg_gradient_descent( w, p, eps=eps )
+    end_time = time.perf_counter()
+
+    # print( (q, v, loss) )
+    print( "gradient descent performance check")
+    print( "\tsdr of ( v @ p ) and q : {0:e}".format( np.linalg.norm( v @ p - q ) / np.linalg.norm( q ) ) )
+    print( "\tloop count : {0:d}".format( len( loss ) ) )
+    print( "\telapsed time : {0:.2f} ms".format( (end_time - start_time)*1000 ) )
+
+
+    start_time = time.perf_counter()
+    q, v, loss = sph_avg_l_bfgs( w, p, eps=eps )
+    end_time = time.perf_counter()
+
+    # print( (q, v, loss) )
+    print( "L-BFGS performance check")
+    print( "\tsdr of ( v @ p ) and q : {0:e}".format( np.linalg.norm( v @ p - q ) / np.linalg.norm( q ) ) )
+    print( "\tloop count : {0:d}".format( len( loss ) ) )
+    print( "\telapsed time : {0:.2f} ms".format( (end_time - start_time)*1000 ) )
 
     # %%
 
-    # Spherical Weighted Average の各アルゴリズムの平均実行時間と計算結果の最大誤差をチェック
+    # plt.plot( loss )
+    # plt.plot( np.log10( loss ))
+    # plt.show()
+    # %%
 
-    print( "comparing each algorithms of spherical average.")
+    w = np.loadtxt("w.csv", delimiter=",")
+    p = np.loadtxt("p.csv", delimiter=",")
+    v_cpp = np.loadtxt("v.csv", delimiter=",")
+    w /= np.sum( w )
+    p /= np.linalg.norm( p, axis=1 )[:,np.newaxis]
 
-    N = 256 # ベクトルの数
-    M = 256 # ベクトルの次元数
-    L = 1000 # 平均を取る試行回数
+    L = 128
+    start_time = time.perf_counter()
+    for _ in range(L):
+        q, v, loss = sph_avg_a1( w, p, eps=eps )
+    end_time = time.perf_counter()
+    np.savetxt( "v_python.csv", v, delimiter="")
+    print( "num loop : {0:d}".format(len(loss)))
+    print( "avg. elapsed time : {0:.2f} ms".format( (end_time - start_time)*1000/L ) )
+    print( " sdr of v_cpp vs v_python : {0:e}".format( np.linalg.norm( v_cpp - v ) / np.linalg.norm( v_cpp ) ) )
+    print( " sdr of q_cpp vs q_python : {0:e}".format( np.linalg.norm( v_cpp @ p - q ) ) )
 
-    # beatrice-vst 内部では float で計算しているので、vst上での実行時間の推定はこっち
-    dtype = np.float32
-    # dtype = np.float64
+    # %%
 
-    print( "( using {0:d}-bit float as dtype )".format(np.finfo(dtype).bits))
+    start_time = time.perf_counter()
+    for _ in range(L):
+        q_gd, v_gd, loss_gd = sph_avg_gradient_descent( w, p, eps=eps )
+    end_time = time.perf_counter()
+    np.savetxt( "v_grad_decent.csv", v_gd, delimiter="")
+    print( "num loop : {0:d}".format(len(loss_gd)))
+    print( "avg. elapsed time : {0:.2f} ms".format( (end_time - start_time)*1000/L ) )
+    print( " sdr of v_cpp vs v_gd : {0:e}".format( np.linalg.norm( v_cpp - v_gd ) / np.linalg.norm( v_cpp ) ) )
+    print( " sdr of q_cpp vs q_gd : {0:e}".format( np.linalg.norm( v_cpp @ p - q_gd ) ) )
+    # %%
 
-    eps = np.finfo(dtype).eps
+    start_time = time.perf_counter()
+    for _ in range(L):
+        q_lbfgs, v_lbfgs, loss_lbfgs = sph_avg_l_bfgs( w, p, max_mem=8, eps=eps )
+    end_time = time.perf_counter()
+    np.savetxt( "v_lbfgs.csv", v_lbfgs, delimiter="")
+    print( "num loop : {0:d}".format(len(loss_lbfgs)))
+    print( "avg. elapsed time : {0:.2f} ms".format( (end_time - start_time)*1000/L) )
+    print( " sdr of v_cpp vs v_lbfgs : {0:e}".format( np.linalg.norm( v_cpp - v_lbfgs ) / np.linalg.norm( v_cpp ) ) )
+    print( " sdr of q_cpp vs q_lbfgs : {0:e}".format( np.linalg.norm( v_cpp @ p - q_lbfgs ) ) )
 
-    elapsed_time_A1 = 0
-    elapsed_time_gd = 0
-    elapsed_time_lbfgs = 0
-
-    sum_count_A1 = 0
-    sum_count_gd = 0
-    sum_count_lbfgs = 0
-
-    diff_q_gd = []
-    diff_v_gd = []
-    diff_q_lbfgs = []
-    diff_v_lbfgs = []
-
-    for l in range(L):
-        w = np.random.rand( N ).astype(dtype)
-        w /= np.sum( w )
-
-        p = np.random.randn( N, M ).astype(dtype)
-        p = p / np.linalg.norm( p, axis=1 )[:,np.newaxis]
-
-
-        start_time = time.perf_counter()
-        q_a1, v_a1, count_a1 = sph_avg_a1( w, p, eps=eps )
-        elapsed_time_A1 += time.perf_counter() - start_time
-        sum_count_A1 += count_a1
-
-        start_time = time.perf_counter()
-        q_gd, v_gd, count_gd = sph_avg_gradient_descent( w, p, eps=eps )
-        elapsed_time_gd += time.perf_counter() - start_time
-        sum_count_gd += count_gd
-
-        start_time = time.perf_counter()
-        q_lbfgs, v_lbfgs, count_lbfgs = sph_avg_l_bfgs( w, p, eps=eps )
-        elapsed_time_lbfgs += time.perf_counter() - start_time
-        sum_count_lbfgs += count_lbfgs
-
-        diff_q_gd.append(np.max(np.abs(( q_a1 - q_gd ))))
-        diff_v_gd.append(np.max(np.abs( v_a1 - v_gd )))
-        diff_q_lbfgs.append(np.max(np.abs( q_a1 - q_lbfgs )))
-        diff_v_lbfgs.append(np.max(np.abs( v_a1 - v_lbfgs )))
-
-    # print( (q, v, loss) )
-    print( "\t Original Algorithm A1")
-    print( "\t\t average loop count : {0:.2f}".format( sum_count_A1 / L ) )
-    print( "\t\t average elapsed time : {0:.2f} ms".format( (elapsed_time_A1 / L)*1000 ) )
-    print( "\t\t average elapsed time per loop : {0:.4f} ms".format( (elapsed_time_A1 / sum_count_A1)*1000 ) )
-
-    print( "\t Gradient descent")
-    print( "\t\t average loop count : {0:.2f}".format( sum_count_gd / L ) )
-    print( "\t\t average elapsed time : {0:.2f} ms".format( (elapsed_time_gd / L)*1000 ) )
-    print( "\t\t average elapsed time per loop : {0:.4f} ms".format( (elapsed_time_gd / sum_count_gd)*1000 ) )
-    print( "\t\t max difference of q : {0:e}".format(np.max(diff_q_gd)))
-    print( "\t\t max difference of v : {0:e}".format(np.max(diff_v_gd)))
-
-    print( "\t L-BFGS")
-    print( "\t\t average loop count : {0:.2f}".format( sum_count_lbfgs / L ) )
-    print( "\t\t average elapsed time : {0:.2f} ms".format( (elapsed_time_lbfgs / L)*1000 ) )
-    print( "\t\t average elapsed time per loop : {0:.4f} ms".format( (elapsed_time_lbfgs / sum_count_lbfgs)*1000 ) )
-    print( "\t\t max difference of q : {0:e}".format(np.max(diff_q_lbfgs)))
-    print( "\t\t max difference of v : {0:e}".format(np.max(diff_v_lbfgs)))
+    # %%

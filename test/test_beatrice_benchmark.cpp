@@ -28,9 +28,6 @@ void save_vec(string filename, const vector<T>& v, size_t N, size_t M = 1) {
   }
 }
 
-
-
-
 int main(int argc, char** argv) {
   size_t N1 = 256;
   size_t M1 = 256;
@@ -45,12 +42,11 @@ int main(int argc, char** argv) {
 
   size_t L = 1024;
 
-  cout << "calculate original algorithm" << endl;
-
+  cout << "calculate elapsed time for beatrice v2.0.0.beta-2" << endl;
 
   size_t loop_count = 0;
   double elapsed_time_org = 0.0;
-  for( size_t l = 0; l < L; l++ ){
+  for (size_t l = 0; l < L; l++) {
     for (size_t n = 0; n < N1; n++) {
       w1[n] = dist_w(engine);
     }
@@ -67,19 +63,17 @@ int main(int argc, char** argv) {
     }
     auto end_time = chrono::system_clock::now();
     elapsed_time_org += static_cast<T>(
-      chrono::duration_cast<chrono::microseconds>(end_time - start_time)
-          .count() /
-      1000.0);
+        chrono::duration_cast<chrono::microseconds>(end_time - start_time)
+            .count() /
+        1000.0);
   }
 
   cout << "num loop : " << loop_count / L << endl;
-  cout << "average elapsed time : " << elapsed_time_org / L << " ms"<< endl;
+  cout << "average elapsed time : " << elapsed_time_org / L << " ms" << endl;
 
-  
-  cout << "calculate L-BFGS method (with SIMD)" << endl;
+  cout << "calculate elapsed time for beatrice v2.0.0.beta-5" << endl;
 
-
-  size_t N2 = 16;
+  size_t N2 = 48;
   size_t M2 = 128;
   size_t K = 384 + 512;
 
@@ -89,7 +83,7 @@ int main(int argc, char** argv) {
 
   loop_count = 0;
   double elapsed_time_new = 0.0;
-  for( size_t l = 0; l < L; l++ ){
+  for (size_t l = 0; l < L; l++) {
     for (size_t n = 0; n < N2; n++) {
       w2[n] = dist_w(engine);
     }
@@ -101,14 +95,14 @@ int main(int argc, char** argv) {
         p3[n * M2 + m] = dist_p(engine);
       }
     }
-    SphericalAverageLBFGS_align<T> sph_avg_LBGS_1 (N2, M1, p2.data(), 4);
-    SphericalAverageLBFGS_align<T> sph_avg_LBGS_2 (N2, M2, p3.data(), 4);
+    SphericalAverageLBFGS_align<T> sph_avg_LBGS_1(N2, M1, p2.data(), 4);
+    SphericalAverageLBFGS_align<T> sph_avg_LBGS_2(N2, M2, p3.data(), 4);
     auto start_time = chrono::system_clock::now();
     sph_avg_LBGS_1.set_weights(N2, w2.data());
     while (!sph_avg_LBGS_1.update()) {
       loop_count++;
     }
-    for (size_t k = 0; k < K; k++){
+    for (size_t k = 0; k < K; k++) {
       sph_avg_LBGS_2.set_weights(N2, w2.data());
       while (!sph_avg_LBGS_2.update()) {
         loop_count++;
@@ -116,11 +110,11 @@ int main(int argc, char** argv) {
     }
     auto end_time = chrono::system_clock::now();
     elapsed_time_new += static_cast<T>(
-      chrono::duration_cast<chrono::microseconds>(end_time - start_time)
-          .count() /
-      1000.0);
+        chrono::duration_cast<chrono::microseconds>(end_time - start_time)
+            .count() /
+        1000.0);
   }
-  cout << "num loop : " << loop_count / L<< endl;
-  cout << "average elapsed time : " << elapsed_time_new / L << " ms\t( " << elapsed_time_org / elapsed_time_new << " times faster )"<< endl;
-
+  cout << "num loop : " << loop_count / L << endl;
+  cout << "average elapsed time : " << elapsed_time_new / L << " ms\t( "
+       << elapsed_time_org / elapsed_time_new << " times faster )" << endl;
 }

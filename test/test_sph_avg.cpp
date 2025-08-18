@@ -56,10 +56,9 @@ int main(int argc, char** argv) {
   cout << "calculate original algorithm" << endl;
   SphericalAverage<T> sph_avg(N, M, p.data());
 
-
   size_t loop_count = 0;
   auto start_time = chrono::system_clock::now();
-  for( size_t l = 0; l < L; l++ ){
+  for (size_t l = 0; l < L; l++) {
     sph_avg.set_weights(N, w.data());
     while (!sph_avg.update()) {
       loop_count++;
@@ -72,11 +71,11 @@ int main(int argc, char** argv) {
   auto elapsed_time_a1 = static_cast<T>(
       chrono::duration_cast<chrono::microseconds>(end_time - start_time)
           .count() /
-      1000.0 );
+      1000.0);
   cout << "num loop : " << loop_count / L << endl;
-  cout << "elapsed time : " << elapsed_time_a1 / L << " ms"<< endl;
-  cout << "elapsed time per each iteration : " << elapsed_time_a1 / loop_count << " ms"<< endl;
-
+  cout << "elapsed time : " << elapsed_time_a1 / L << " ms" << endl;
+  cout << "elapsed time per each iteration : " << elapsed_time_a1 / loop_count
+       << " ms" << endl;
 
   cout << "calculate gradient descent method" << endl;
 
@@ -84,7 +83,7 @@ int main(int argc, char** argv) {
 
   loop_count = 0;
   start_time = chrono::system_clock::now();
-  for( size_t l = 0; l < L; l++ ){
+  for (size_t l = 0; l < L; l++) {
     sph_avg_gd.set_weights(N, w.data());
     while (!sph_avg_gd.update()) {
       loop_count++;
@@ -99,20 +98,21 @@ int main(int argc, char** argv) {
           .count() /
       1000.0);
   cout << "num loop : " << loop_count / L << endl;
-  cout << "elapsed time : " << elapsed_time / L << " ms\t( " << elapsed_time_a1 / elapsed_time << " times faster )"<< endl;
-  cout << "elapsed time per each iteration : " << elapsed_time / loop_count << " ms"<< endl;
-
+  cout << "elapsed time : " << elapsed_time / L << " ms\t( "
+       << elapsed_time_a1 / elapsed_time << " times faster )" << endl;
+  cout << "elapsed time per each iteration : " << elapsed_time / loop_count
+       << " ms" << endl;
 
   T s = (T)0.0;
   T d = (T)0.0;
-  
-  for( size_t n = 0; n < N; n++ ){
+
+  for (size_t n = 0; n < N; n++) {
     T tmp = v_org[n] - v_gd[n];
     s += v_org[n] * v_org[n];
     d += tmp * tmp;
   }
-  T sdr = 10.0 * log10( d / s );
-  if( std::isnan( sdr ) ){
+  T sdr = 10.0 * log10(d / s);
+  if (std::isnan(sdr)) {
     cerr << "nan" << endl;
   }
 
@@ -124,7 +124,7 @@ int main(int argc, char** argv) {
 
   loop_count = 0;
   start_time = chrono::system_clock::now();
-  for( size_t l = 0; l < L; l++ ){
+  for (size_t l = 0; l < L; l++) {
     sph_avg_LBFGS.set_weights(N, w.data());
     while (!sph_avg_LBFGS.update()) {
       loop_count++;
@@ -137,33 +137,35 @@ int main(int argc, char** argv) {
   elapsed_time = static_cast<T>(
       chrono::duration_cast<chrono::microseconds>(end_time - start_time)
           .count() /
-      1000.0 );
-  cout << "num loop : " << loop_count / L<< endl;
-  cout << "elapsed time : " << elapsed_time / L << " ms\t( " << elapsed_time_a1 / elapsed_time << " times faster )"<< endl;
-  cout << "elapsed time per each iteration : " << elapsed_time / loop_count << " ms"<< endl;
+      1000.0);
+  cout << "num loop : " << loop_count / L << endl;
+  cout << "elapsed time : " << elapsed_time / L << " ms\t( "
+       << elapsed_time_a1 / elapsed_time << " times faster )" << endl;
+  cout << "elapsed time per each iteration : " << elapsed_time / loop_count
+       << " ms" << endl;
 
   s = (T)0.0;
   d = (T)0.0;
-  
-  for( size_t n = 0; n < N; n++ ){
+
+  for (size_t n = 0; n < N; n++) {
     T tmp = v_org[n] - v_lbfgs[n];
     s += v_org[n] * v_org[n];
     d += tmp * tmp;
   }
-  sdr = 10.0 * log10( d / s );
-  if( std::isnan( sdr ) ){
+  sdr = 10.0 * log10(d / s);
+  if (std::isnan(sdr)) {
     cerr << "nan" << endl;
   }
 
   cout << "diff SDR ov v : " << sdr << endl;
 
-  cout << "calculate L-BFGS method (with SIMD)" << endl;
+  cout << "calculate L-BFGS method (with OpenMP SIMD)" << endl;
 
   SphericalAverageLBFGS_align<T> sph_avg_LBFGS_SIMD(N, M, p.data(), 4);
 
   loop_count = 0;
   start_time = chrono::system_clock::now();
-  for( size_t l = 0; l < L; l++ ){
+  for (size_t l = 0; l < L; l++) {
     sph_avg_LBFGS_SIMD.set_weights(N, w.data());
     while (!sph_avg_LBFGS_SIMD.update()) {
       loop_count++;
@@ -176,26 +178,27 @@ int main(int argc, char** argv) {
   elapsed_time = static_cast<T>(
       chrono::duration_cast<chrono::microseconds>(end_time - start_time)
           .count() /
-      1000.0 );
-  cout << "num loop : " << loop_count / L<< endl;
-  cout << "elapsed time : " << elapsed_time / L<< " ms\t( " << elapsed_time_a1 / elapsed_time << " times faster )"<< endl;
-  cout << "elapsed time per each iteration : " << elapsed_time / loop_count << " ms"<< endl;
+      1000.0);
+  cout << "num loop : " << loop_count / L << endl;
+  cout << "elapsed time : " << elapsed_time / L << " ms\t( "
+       << elapsed_time_a1 / elapsed_time << " times faster )" << endl;
+  cout << "elapsed time per each iteration : " << elapsed_time / loop_count
+       << " ms" << endl;
 
   s = (T)0.0;
   d = (T)0.0;
-  
-  for( size_t n = 0; n < N; n++ ){
+
+  for (size_t n = 0; n < N; n++) {
     T tmp = v_org[n] - v_lbfgs_simd[n];
     s += v_org[n] * v_org[n];
     d += tmp * tmp;
   }
-  sdr = 10.0 * log10( d / s );
-  if( std::isnan( sdr ) ){
+  sdr = 10.0 * log10(d / s);
+  if (std::isnan(sdr)) {
     cerr << "nan" << endl;
   }
 
   cout << "diff SDR ov v : " << sdr << endl;
-
 
   save_vec("v.csv", v_org, N);
 }
